@@ -13,23 +13,34 @@ uploaded_file = st.file_uploader("Upload Excel File", type=["xlsx"])
 
 if uploaded_file is not None:
 
-    df = pd.read_excel(uploaded_file)
+    @st.cache_data
+    def load_data(file):
+        df = pd.read_excel(file)
+        df.columns = df.columns.str.strip()
+        return df
 
-    # Clean column names
-    df.columns = df.columns.str.strip()
+    df = load_data(uploaded_file)
 
     # =========================
-    # SKU STANDARDIZATION
+    # SKU STANDARDIZATION (FULLY UPDATED)
     # =========================
     def map_sku(x):
         x = str(x).upper()
 
         if "SSRB" in x:
             return "SSRB"
-        elif "350" in x:
+        elif "300-350" in x or "350" in x:
             return "350ML"
+        elif "330" in x:
+            return "330ML"
         elif "500" in x:
             return "500ML"
+        elif "600" in x:
+            return "600ML"
+        elif "200" in x:
+            return "200ML"
+        elif "1.5" in x:
+            return "1.5LTR"
         elif "1LTR" in x or "1 LTR" in x:
             return "1LTR"
         elif "2.25" in x:
@@ -43,11 +54,16 @@ if uploaded_file is not None:
 
     df["SKU_FINAL"] = df["SKUS"].apply(map_sku)
 
-    sku_order = ["SSRB", "350ML", "500ML", "1LTR", "2LTR", "2.25LTR", "250ML CAN"]
+    # ✅ FINAL SKU ORDER
+    sku_order = [
+        "SSRB", "200ML", "250ML CAN", "330ML", "350ML",
+        "500ML", "600ML", "1LTR", "1.5LTR", "2LTR", "2.25LTR"
+    ]
+
     df = df[df["SKU_FINAL"].isin(sku_order)]
 
     # =========================
-    # SIDEBAR FILTERS (FIXED KEYS)
+    # SIDEBAR FILTERS
     # =========================
     st.sidebar.header("Filters")
 
@@ -133,25 +149,12 @@ if uploaded_file is not None:
         df2 = df2[df2["BRAND"].isin(brand2)]
 
     # =========================
-    # AVG TABLE FUNCTION (PIVOT)
+    # AVG TABLE
     # =========================
     def create_avg_table(df1, df2, metric):
 
-        p1 = pd.pivot_table(
-            df1,
-            index="CITY",
-            columns="SKU_FINAL",
-            values=metric,
-            aggfunc="mean"
-        )
-
-        p2 = pd.pivot_table(
-            df2,
-            index="CITY",
-            columns="SKU_FINAL",
-            values=metric,
-            aggfunc="mean"
-        )
+        p1 = pd.pivot_table(df1, index="CITY", columns="SKU_FINAL", values=metric, aggfunc="mean")
+        p2 = pd.pivot_table(df2, index="CITY", columns="SKU_FINAL", values=metric, aggfunc="mean")
 
         final = pd.DataFrame(index=sorted(set(p1.index).union(set(p2.index))))
 
@@ -172,25 +175,12 @@ if uploaded_file is not None:
         return final.reset_index()
 
     # =========================
-    # MIN MAX FUNCTION
+    # MIN MAX TABLE
     # =========================
     def create_min_max_table(df, metric):
 
-        min_table = pd.pivot_table(
-            df,
-            index="CITY",
-            columns="SKU_FINAL",
-            values=metric,
-            aggfunc="min"
-        )
-
-        max_table = pd.pivot_table(
-            df,
-            index="CITY",
-            columns="SKU_FINAL",
-            values=metric,
-            aggfunc="max"
-        )
+        min_table = pd.pivot_table(df, index="CITY", columns="SKU_FINAL", values=metric, aggfunc="min")
+        max_table = pd.pivot_table(df, index="CITY", columns="SKU_FINAL", values=metric, aggfunc="max")
 
         final = pd.DataFrame(index=min_table.index)
 
